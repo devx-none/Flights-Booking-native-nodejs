@@ -7,14 +7,14 @@ const path = require("path");
 const hostname = "127.0.0.1";
 const url = require("url");
 const qs = require("querystring");
-
+//mail
+var nodemailer = require("nodemailer");
 
 //
 // const pool = require("./config/db.js");
 
 const port = process.env.PORT || 3000;
 const server = http.createServer((req, res) => {
- 
   let filePath = path.join(
     __dirname,
     "public",
@@ -33,7 +33,7 @@ const server = http.createServer((req, res) => {
       .on("end", () => {
         console.log(qs.parse(rawdata));
         var info = qs.parse(rawdata);
-    
+
         console.log(info.date_depart);
         const flights = require("./controllers/flight.js");
         const flightsDispo = new flights();
@@ -45,19 +45,21 @@ const server = http.createServer((req, res) => {
           info.to,
           info.place
         );
+
+        
       });
-      return ;
+    return;
   }
-  if(req.url === '/booking'){
+  if (req.url === "/booking") {
     var rawdata = "";
     req
       .on("data", (data) => {
         rawdata += data;
       })
       .on("end", () => {
-        console.log(qs.parse(rawdata));
+        // console.log(qs.parse(rawdata));
         var info = qs.parse(rawdata);
-    
+
         console.log(info.first_name);
         const flights = require("./controllers/flight.js");
         const flightsDispo = new flights();
@@ -69,10 +71,73 @@ const server = http.createServer((req, res) => {
           info.email,
           info.mobile,
           info.seats,
+          info.price,
           info.id_flight
         );
+
+           //...get data using locale storage
+      if (typeof localStorage === "undefined" || localStorage === null) {
+        var LocalStorage = require('node-localstorage').LocalStorage;
+        var localStorage = new LocalStorage('./scratch');
+     }
+    var dataFlight = JSON.parse(localStorage.getItem("flights"))
+    console.log("localStorage:"+dataFlight[0]);
+        //update seats flight
+        flightsDispo.updateSeats(res,req,info.seats,info.id_flight)
+
+        //mail
+        main(info.first_name, info.last_name,dataFlight[0],dataFlight[1],dataFlight[2],dataFlight[3],dataFlight[4], info.email, info.price).catch(
+          console.error
+        );
+      
       });
-      return ;
+      
+  
+
+    async function main(first_name, last_name,airline,from,to,date,time, email, price) {
+      // Generate test SMTP service account from ethereal.email
+      // Only needed if you don't have a real mail account for testing
+      let testAccount = await nodemailer.createTestAccount();
+      // Send mail
+
+      const output = `
+      <h2> Welcome Mr : ${first_name} ${last_name}</h2>
+      <h3> Flight Details </h3>
+      <ul>
+      <li>Airline :${airline}  </li>
+      <li>From : ${from} </li>
+      <li>To   : ${to}} </li>
+      <li>Departue :  ${date} at ${time} </li>
+      </ul>
+      <h4>Price : ${price}`;
+
+      let transporter = nodemailer.createTransport({
+        host: "smtp.ethereal.email",
+        port: 587,
+        secure: false, // true for 465, false for other ports
+        service: "Gmail",
+        auth: {
+          user: "checker.safiairline@gmail.com", // generated ethereal user
+          pass: "SafiAIrline@123", // generated ethereal password
+        },
+      });
+      // send mail with defined transport object
+      let info = await transporter.sendMail({
+        from: '"SAFIAIR" <checker.safiairline@gmail.com>', // sender address
+        to: `${email}`, // list of receivers
+        subject: "Flight Details", // Subject line
+        text: "Hello world?", // plain text body
+        html: output, // html body
+      });
+      console.log("Message sent: %s", info.messageId);
+      // Message sent: <b658f8ca-6296-ccf4-8306-87d57a0b4321@example.com>
+
+      // Preview only available when sending through an Ethereal account
+      console.log("Preview URL: %s", nodemailer.getTestMessageUrl(info));
+      // Preview URL: https://ethereal.email/message/WaQKMgKddxQDoou...
+    }
+
+    return;
   }
 
   // if(req.url ==='/'){
@@ -129,7 +194,6 @@ const server = http.createServer((req, res) => {
         res.end(`Server Error: ${err.code}`);
       }
     } else {
-      
       res.writeHead(200, { "Content-Type": contentType });
       res.end(content, "utf8");
     }
